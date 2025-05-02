@@ -213,16 +213,21 @@ def patchify(image_list, n_patches):
 
     Assume n_patches is 7, image size of (5, 3, 224, 224) and N samples.
 
-    Each sub-image of size (3, 224, 224) is divided into patches of size (3, 32, 32)
-    After that each patch is flattened into a vector of size 3 * 32 * 32 = 3072 , 3072-dimensional vector
+    Each sub-image of size (3, 224, 224) is divided into patches of size
+    (3, 32, 32)
+    After that each patch is flattened into a vector of size 3 * 32 * 32 =
+    3072 , 3072-dimensional vector
     For each image, we got 5 * 7 * 7 = 245 patches of size 3072
 
     Parameters:
-        image_list (torch.Tensor): Input tensor of shape (N, seq_len, C, H, W)
-        n_patches (int): Number of patches to divide each image's dimension into.
+        image_list (torch.Tensor): Input tensor of shape
+        (N, seq_len, C, H, W)
+        n_patches (int): Number of patches to divide each image's dimension
+        into.
 
     Returns:
-        torch.Tensor: Patches of shape (N, seq_len * n_patches^2, C * (H/n_patches) * (W/n_patches)).
+        torch.Tensor: Patches of shape (N, seq_len * n_patches^2, C *
+        (H/n_patches) * (W/n_patches)).
     """
     n, seq_len, c, h, w = image_list.shape
 
@@ -242,10 +247,12 @@ def patchify(image_list, n_patches):
 
 
 def get_positional_encoding(seq_len, hidden_d):
-    """Generate positional encoding for a given sequence length and hidden dimensionality.
+    """Generate positional encoding for a given sequence length and hidden
+    dimensionality.
 
     The positional encoding is computed using sine and cosine functions.
-    It will be assigned to the input tokens to provide information about their position in the sequence.
+    It will be assigned to the input tokens to provide information about
+    their position in the sequence.
 
     Parameters:
         seq_len (int): Length of the sequence.
@@ -354,7 +361,8 @@ class ViTBlock(nn.Module):
 
         Parameters:
             x (torch.Tensor): Input tensor of shape (N, seq_len, D)
-              where N is batch size, seq_len is sequence length, D is token dimensionality.
+              where N is batch size, seq_len is sequence length, D is token
+              dimensionality.
 
         Returns:
             torch.Tensor: Normalized tokens of shape (N, seq_len, D)
@@ -379,8 +387,10 @@ class ViT(nn.Module):
     """Vision Transformer (ViT) implementation for regression tasks.
 
     Parameters:
-        chw (tuple): Input shape (C, H, W) where C is number of channels, H is height, W is width.
-        n_patches (int): Number of patches to divide each image's dimension into.
+        chw (tuple): Input shape (C, H, W) where C is number of channels,
+        H is height, W is width.
+        n_patches (int): Number of patches to divide each image's dimension
+        into.
         n_blocks (int): Number of transformer blocks.
         hidden_d (int): Dimensionality of each token.
         n_heads (int): Number of attention heads.
@@ -425,7 +435,8 @@ class ViT(nn.Module):
             image_list (torch.Tensor): Input tensor of shape (N, S, C, H, W)
 
         Returns:
-            torch.Tensor: Output tensor of shape (N, out_d) where N is batch size, out_d is the output dimensionality.
+            torch.Tensor: Output tensor of shape (N, out_d) where N is batch
+            size, out_d is the output dimensionality.
         """
         n, _, _, _, _ = image_list.shape
 
