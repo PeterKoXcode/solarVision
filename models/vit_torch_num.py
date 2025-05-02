@@ -1,3 +1,6 @@
+__author__ = "Peter Kopecký"
+__email__ = "xkopecky@stuba.sk"
+
 import numpy as np
 import pandas as pd
 import os
@@ -254,13 +257,13 @@ class CombinedDataset(Dataset):
 
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, output_dim=64, device='cuda'):
-        """MLP model implementation for a processing of numerical meteo values.
+    """MLP model implementation for a processing of numerical meteo values.
 
-        Parameters:
-            input_dim (int): Number of input dimensions.
-            output_dim (int): Number of output dimensions.
-        """
+    Parameters:
+        input_dim (int): Number of input dimensions.
+        output_dim (int): Number of output dimensions.
+    """
+    def __init__(self, input_dim, output_dim=64, device='cuda'):
         super(MLP, self).__init__()
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
 
@@ -348,13 +351,13 @@ def get_positional_encoding(seq_len, hidden_d):
 
 
 class MHSA(nn.Module):
-    def __init__(self, hidden_d, n_heads=2, device='cuda'):
-        """Multi-Head Self-Attention (MHSA) implementation for regression.
+    """Multi-Head Self-Attention (MHSA) implementation for regression.
 
-        Parameters:
-            hidden_d (int): Dimensionality of token embeddings.
-            n_heads (int): Number of attention heads.
-        """
+    Parameters:
+        hidden_d (int): Dimensionality of token embeddings.
+        n_heads (int): Number of attention heads.
+    """
+    def __init__(self, hidden_d, n_heads=2, device='cuda'):
         super(MHSA, self).__init__()
 
         self.hidden_d = hidden_d
@@ -401,14 +404,14 @@ class MHSA(nn.Module):
 
 
 class ViTBlock(nn.Module):
-    def __init__(self, hidden_d, n_heads, mlp_ratio=4, device='cuda'):
-        """Encoder Block for Vision Transformer.
+    """Encoder Block for Vision Transformer.
 
-        Parameters:
-            hidden_d (int): Dimensionality of each token.
-            n_heads (int): Number of attention heads.
-            mlp_ratio (int): Multiplier applied to hidden dimensionality for MLP.
-        """
+    Parameters:
+        hidden_d (int): Dimensionality of each token.
+        n_heads (int): Number of attention heads.
+        mlp_ratio (int): Multiplier applied to hidden dimensionality for MLP.
+    """
+    def __init__(self, hidden_d, n_heads, mlp_ratio=4, device='cuda'):
         super(ViTBlock, self).__init__()
         self.hidden_d = hidden_d
         self.n_heads = n_heads
@@ -455,17 +458,17 @@ class ViTBlock(nn.Module):
 
 
 class ViT(nn.Module):
-    def __init__(self, chw, n_patches=7, n_blocks=6, hidden_d=256, n_heads=2, device='cuda'):
-        """Vision Transformer (ViT) implementation for regression tasks.
+    """Vision Transformer (ViT) implementation for regression tasks.
 
-        Parameters:
-            chw (tuple): Input shape (C, H, W) where C is number of channels, H is height, W is width.
-            n_patches (int): Number of patches to divide each image's dimension into.
-            n_blocks (int): Number of transformer blocks.
-            hidden_d (int): Dimensionality of each token.
-            n_heads (int): Number of attention heads.
-            out_d (int): Output dimensionality.
-        """
+    Parameters:
+        chw (tuple): Input shape (C, H, W) where C is number of channels, H is height, W is width.
+        n_patches (int): Number of patches to divide each image's dimension into.
+        n_blocks (int): Number of transformer blocks.
+        hidden_d (int): Dimensionality of each token.
+        n_heads (int): Number of attention heads.
+        out_d (int): Output dimensionality.
+    """
+    def __init__(self, chw, n_patches=7, n_blocks=6, hidden_d=256, n_heads=2, device='cuda'):
         super(ViT, self).__init__()
 
         # Hyperparameters
@@ -529,16 +532,16 @@ class ViT(nn.Module):
 
 
 class CombinedModel(nn.Module):
-    def __init__(self, vit_model, mlp_model, vit_dim, mlp_dim, out_d=1, device='cuda'):
-        """Combined model implementation which combines MLP's output with ViT's output
+    """Combined model implementation which combines MLP's output with ViT's output
 
-        Parameters:
-            vit_model (nn.Module): Vision Transformer model
-            mlp_model (nn.Module): MLP model
-            vit_dim (int): Vision Transformer output dimensionality
-            mlp_dim (int): MLP output dimensionality
-            out_d (int): Output dimensionality
-        """
+    Parameters:
+        vit_model (nn.Module): Vision Transformer model
+        mlp_model (nn.Module): MLP model
+        vit_dim (int): Vision Transformer output dimensionality
+        mlp_dim (int): MLP output dimensionality
+        out_d (int): Output dimensionality
+    """
+    def __init__(self, vit_model, mlp_model, vit_dim, mlp_dim, out_d=1, device='cuda'):
         super(CombinedModel, self).__init__()
 
         self.vit_model = vit_model

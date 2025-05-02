@@ -1,3 +1,6 @@
+__author__ = "Peter Kopecký"
+__email__ = "xkopecky@stuba.sk"
+
 import numpy as np
 import pandas as pd
 import os

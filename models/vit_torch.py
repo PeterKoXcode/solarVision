@@ -1,3 +1,6 @@
+__author__ = "Peter Kopecký"
+__email__ = "xkopecky@stuba.sk"
+
 import numpy as np
 import pandas as pd
 import os
@@ -266,13 +269,13 @@ def get_positional_encoding(seq_len, hidden_d):
 
 
 class MHSA(nn.Module):
-    def __init__(self, hidden_d, n_heads=2, device='cuda'):
-        """Multi-Head Self-Attention (MHSA) implementation for regression.
+    """Multi-Head Self-Attention (MHSA) implementation for regression.
 
-        Parameters:
-            hidden_d (int): Dimensionality of token embeddings.
-            n_heads (int): Number of attention heads.
-        """
+    Parameters:
+        hidden_d (int): Dimensionality of token embeddings.
+        n_heads (int): Number of attention heads.
+    """
+    def __init__(self, hidden_d, n_heads=2, device='cuda'):
         super(MHSA, self).__init__()
 
         self.hidden_d = hidden_d
@@ -319,14 +322,14 @@ class MHSA(nn.Module):
 
 
 class ViTBlock(nn.Module):
-    def __init__(self, hidden_d, n_heads, mlp_ratio=4, device='cuda'):
-        """Encoder Block for Vision Transformer.
+    """Encoder Block for Vision Transformer.
 
-        Parameters:
-            hidden_d (int): Dimensionality of each token.
-            n_heads (int): Number of attention heads.
-            mlp_ratio (int): Multiplier applied to hidden dimensionality for MLP.
-        """
+    Parameters:
+        hidden_d (int): Dimensionality of each token.
+        n_heads (int): Number of attention heads.
+        mlp_ratio (int): Multiplier applied to hidden dimensionality for MLP.
+    """
+    def __init__(self, hidden_d, n_heads, mlp_ratio=4, device='cuda'):
         super(ViTBlock, self).__init__()
         self.hidden_d = hidden_d
         self.n_heads = n_heads
@@ -373,17 +376,17 @@ class ViTBlock(nn.Module):
 
 
 class ViT(nn.Module):
-    def __init__(self, chw, n_patches=7, n_blocks=2, hidden_d=512, n_heads=2, out_d=1, device='cuda'):
-        """Vision Transformer (ViT) implementation for regression tasks.
+    """Vision Transformer (ViT) implementation for regression tasks.
 
-        Parameters:
-            chw (tuple): Input shape (C, H, W) where C is number of channels, H is height, W is width.
-            n_patches (int): Number of patches to divide each image's dimension into.
-            n_blocks (int): Number of transformer blocks.
-            hidden_d (int): Dimensionality of each token.
-            n_heads (int): Number of attention heads.
-            out_d (int): Output dimensionality.
-        """
+    Parameters:
+        chw (tuple): Input shape (C, H, W) where C is number of channels, H is height, W is width.
+        n_patches (int): Number of patches to divide each image's dimension into.
+        n_blocks (int): Number of transformer blocks.
+        hidden_d (int): Dimensionality of each token.
+        n_heads (int): Number of attention heads.
+        out_d (int): Output dimensionality.
+    """
+    def __init__(self, chw, n_patches=7, n_blocks=2, hidden_d=512, n_heads=2, out_d=1, device='cuda'):
         super(ViT, self).__init__()
 
         # Hyperparameters
