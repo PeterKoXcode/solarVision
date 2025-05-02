@@ -279,13 +279,13 @@ class MHSA(nn.Module):
         self.n_heads = n_heads
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
 
-        assert hidden_d % n_heads == 0, f"Can't divide dimension {hidden_d} into {n_heads} heads"
+        assert self.hidden_d % self.n_heads == 0, f"Can't divide dimension {self.hidden_d} into {self.n_heads} heads"
 
-        self.d_head = hidden_d // n_heads  # Dimensionality per head
+        self.d_head = self.hidden_d // self.n_heads  # Dimensionality per head
 
-        self.q_mappings = nn.Linear(hidden_d, hidden_d).to(self.device)
-        self.k_mappings = nn.Linear(hidden_d, hidden_d).to(self.device)
-        self.v_mappings = nn.Linear(hidden_d, hidden_d).to(self.device)
+        self.q_mappings = nn.Linear(self.hidden_d, self.hidden_d).to(self.device)
+        self.k_mappings = nn.Linear(self.hidden_d, self.hidden_d).to(self.device)
+        self.v_mappings = nn.Linear(self.hidden_d, self.hidden_d).to(self.device)
 
         self.softmax = nn.Softmax(dim=-1)
 
