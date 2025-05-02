@@ -14,16 +14,17 @@ from torch.nn import MSELoss
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import ToTensor, Normalize, Compose
 
-
 np.random.seed(0)
 torch.manual_seed(0)
-
 
 MONTHS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 MONTHS_WITHOUT_WINTER = ['03', '04', '05', '06', '07', '08', '09', '10']
 LOCATIONS = ['Alpnach']
 YEAR = '2018'
 EXPO = '10'
+
+
+# ------------------------------------------------ Loading the data ----------------------------------------------------
 
 
 def read_data(months, location):
@@ -83,26 +84,25 @@ def read_data(months, location):
 
     return all_images, all_data
 
-# ----------------------------------------------------------------------------------------------------------------------
-
 
 images, df = read_data(MONTHS, LOCATIONS[0])
 
 dataframe = np.array(df)
 del df
 
-# ----------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------- Sequences creation ----------------------------------------------------
 
 
 sequence_length = 5
 step = 1
-sequences_df = np.array([dataframe[i:i + sequence_length] for i in range(0, len(dataframe) - sequence_length + 1, step)])
+sequences_df = np.array(
+    [dataframe[i:i + sequence_length] for i in range(0, len(dataframe) - sequence_length + 1, step)])
 sequences_im = np.array([images[i:i + sequence_length] for i in range(0, len(images) - sequence_length + 1, step)])
 first_elements = np.array(sequences_df[:, 4, 0])
 del dataframe
 del images
 
-# ----------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------ Features & Labels alignment -----------------------------------------------
 
 
 first_elements = first_elements[1:]
@@ -110,25 +110,21 @@ first_elements = first_elements[1:]
 sequences_im = sequences_im[:-1]
 
 sequences_df = sequences_df[:-1]
-sequences_df_num = np.array(sequences_df)
 
-# ----------------------------------------------------------------------------------------------------------------------
+# ------------------------------------ Removing outliers & cross-day sequences -----------------------------------------
 
 
-# Removing cross-day sequences
 mask = [
-    not (abs(seq[0][5] - seq[4][5]) > 3 or first_elements[idx] > 1300)
+    not (abs(seq[0][-1] - seq[sequence_length - 1][-1]) > 3 or first_elements[idx] > 1300)
     for idx, seq in enumerate(sequences_df)
 ]
 del sequences_df
 
 first_elements = first_elements[mask]
 sequences_im = sequences_im[mask]
-sequences_df_num = sequences_df_num[mask]
 del mask
-del sequences_df_num
 
-# ----------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------ Sets creation -------------------------------------------------------
 
 
 train_im, temp_im, train_y, temp_y = train_test_split(
@@ -152,10 +148,11 @@ del temp_im
 del temp_y
 
 print(f'Train set: {len(train_im)} samples, Test set: {len(test_im)} samples, Valid set: {len(valid_im)} samples')
-print(47*"*" + "     shapes     " + 47*"*")
+print(47 * "*" + "     shapes     " + 47 * "*")
 print(f'{train_im.shape} {valid_im.shape} {test_im.shape}')
 
-# ----------------------------------------------------------------------------------------------------------------------
+# -------------------------------------------- Image data processing ---------------------------------------------------
+
 
 mean = np.mean(train_im, axis=(0, 1, 2, 3))
 std = np.std(train_im, axis=(0, 1, 2, 3))
@@ -172,7 +169,6 @@ transform = Compose([
 del mean
 del std
 
-
 train_im = torch.stack([
     torch.stack([transform(image) for image in batch]) for batch in train_im
 ])
@@ -184,12 +180,15 @@ test_im = torch.stack([
 ])
 del transform
 
+
 # ----------------------------------------------------------------------------------------------------------------------
-#                                                   MODEL PART
+#                                              OWN DATASET PART
 # ----------------------------------------------------------------------------------------------------------------------
 
 
 class ImageDataset(Dataset):
+    """Custom dataset class for loading images and labels."""
+
     def __init__(self, image_list, label_list):
         self.images = image_list
         self.labels = torch.tensor(label_list, dtype=torch.float32).unsqueeze(1)
@@ -200,18 +199,27 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         return self.images[idx], self.labels[idx]
 
+
+# ----------------------------------------------------------------------------------------------------------------------
+#                                                   MODEL PART
 # ----------------------------------------------------------------------------------------------------------------------
 
 
 def patchify(image_list, n_patches):
-    """
-    Assume n_patches is 7, image size of (5, 3, 224, 224) and N samples
+    """Divide images into patches and flatten them.
+
+    Assume n_patches is 7, image size of (5, 3, 224, 224) and N samples.
 
     Each sub-image of size (3, 224, 224) is divided into patches of size (3, 32, 32)
     After that each patch is flattened into a vector of size 3 * 32 * 32 = 3072 , 3072-dimensional vector
     For each image, we got 5 * 7 * 7 = 245 patches of size 3072
 
-    Resulted shape is (N, 245, 3072)
+    Parameters:
+        image_list (torch.Tensor): Input tensor of shape (N, seq_len, C, H, W)
+        n_patches (int): Number of patches to divide each image's dimension into.
+
+    Returns:
+        torch.Tensor: Patches of shape (N, seq_len * n_patches^2, C * (H/n_patches) * (W/n_patches)).
     """
     n, seq_len, c, h, w = image_list.shape
 
@@ -226,18 +234,22 @@ def patchify(image_list, n_patches):
 
     return patches
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 
 def get_positional_encoding(seq_len, hidden_d):
-    """
-    Generate positional encoding for a given sequence length and hidden dimensionality.
-    Args:
-    - seq_len (int): Length of the sequence.
-    - hidden_d (int): Dimensionality of the token embeddings.
+    """Generate positional encoding for a given sequence length and hidden dimensionality.
+
+    The positional encoding is computed using sine and cosine functions.
+    It will be assigned to the input tokens to provide information about their position in the sequence.
+
+    Parameters:
+        seq_len (int): Length of the sequence.
+        hidden_d (int): Dimensionality of the token embeddings.
 
     Returns:
-    - torch.Tensor: Positional encoding of shape (seq_len, hidden_d).
+        torch.Tensor: Positional encoding of shape (seq_len, hidden_d).
     """
     position = torch.arange(seq_len, dtype=torch.float).unsqueeze(1)
     div_term = torch.exp(
@@ -249,36 +261,20 @@ def get_positional_encoding(seq_len, hidden_d):
 
     return positional_encoding
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 
 class MHSA(nn.Module):
     def __init__(self, hidden_d, n_heads=2, device='cuda'):
-        """
-        Multi-Head Self-Attention (MHSA) implementation for regression.
-        Args:
-        - d (int): Dimensionality of token embeddings.
-        - n_heads (int): Number of attention heads.
+        """Multi-Head Self-Attention (MHSA) implementation for regression.
 
-        - Batch Processing: The original code processes each sequence and head independently using nested loops, which
-        is inefficient. The optimized code uses vectorized operations for all sequences and heads simultaneously,
-        leveraging PyTorch's GPU acceleration.
-        - Use of Single Linear Layers: Instead of creating separate Linear layers for each head, a single Linear layer
-        is used, and the outputs are reshaped to split into multiple heads. This reduces the number of parameters and
-        simplifies the code.
-        - Reshaping for Heads: The reshaping (view) and transposing (transpose) steps manage the division of dimensions
-        into multiple heads without manual slicing.
-        - Concatenation Simplified: The concatenation of results from different heads is done in a single step using
-        .view and .transpose, eliminating the need for manual looping and stacking.
-
-        Expected benefits :
-        - Performance: The vectorized approach minimizes Python overhead and leverages optimized matrix operations,
-        leading to faster computation.
-        - Readability: The code is cleaner, with reduced complexity and clearer operations.
-        - Scalability: The new implementation scales better with larger batch sizes and sequence lengths.
-
+        Parameters:
+            hidden_d (int): Dimensionality of token embeddings.
+            n_heads (int): Number of attention heads.
         """
         super(MHSA, self).__init__()
+
         self.hidden_d = hidden_d
         self.n_heads = n_heads
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
@@ -294,12 +290,13 @@ class MHSA(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, sequences):
-        """
-        Forward pass for MHSA.
-        Args:
-        - sequences (torch.Tensor): Input tensor of shape (N, seq_length, d).
+        """Forward pass for Multi-Head Self-Attention (MHSA).
+
+        Parameters:
+            sequences (torch.Tensor): Input tensor of shape (N, seq_len, D).
+
         Returns:
-        - torch.Tensor: Output tensor of shape (N, seq_length, d).
+            torch.Tensor: Output tensor of shape (N, seq_len, D).
         """
         n_samples, seq_length, _ = sequences.shape
 
@@ -307,7 +304,7 @@ class MHSA(nn.Module):
         k = self.k_mappings(sequences).view(n_samples, seq_length, self.n_heads, self.d_head).transpose(1, 2)
         v = self.v_mappings(sequences).view(n_samples, seq_length, self.n_heads, self.d_head).transpose(1, 2)
 
-        attention_scores = torch.matmul(q, k.transpose(-2, -1)) / (self.d_head**0.5)
+        attention_scores = torch.matmul(q, k.transpose(-2, -1)) / (self.d_head ** 0.5)
         attention_probs = self.softmax(attention_scores)
 
         attention_output = torch.matmul(attention_probs, v)
@@ -317,51 +314,53 @@ class MHSA(nn.Module):
 
         return attention_output
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 
 class ViTBlock(nn.Module):
     def __init__(self, hidden_d, n_heads, mlp_ratio=4, device='cuda'):
-        """
-        Encoder Block for Vision Transformer.
-        Args:
-        - hidden_d (int): Dimensionality of each token.
-        - n_heads (int): Number of attention heads.
-        - mlp_ratio (int): Multiplier applied to hidden dimensionality for MLP.
+        """Encoder Block for Vision Transformer.
+
+        Parameters:
+            hidden_d (int): Dimensionality of each token.
+            n_heads (int): Number of attention heads.
+            mlp_ratio (int): Multiplier applied to hidden dimensionality for MLP.
         """
         super(ViTBlock, self).__init__()
         self.hidden_d = hidden_d
         self.n_heads = n_heads
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
 
-        self.norm1 = nn.LayerNorm(hidden_d).to(self.device)
+        self.norm1 = nn.LayerNorm(self.hidden_d).to(self.device)
 
-        self.mhsa = MHSA(hidden_d, n_heads).to(self.device)
+        self.mhsa = MHSA(self.hidden_d, self.n_heads).to(self.device)
 
-        self.norm2 = nn.LayerNorm(hidden_d).to(self.device)
+        self.norm2 = nn.LayerNorm(self.hidden_d).to(self.device)
 
         self.mlp = nn.Sequential(
-            nn.Linear(hidden_d, mlp_ratio * hidden_d).to(self.device),
+            nn.Linear(self.hidden_d, mlp_ratio * self.hidden_d),
             nn.GELU(),
             nn.Dropout(0.1),
-            nn.Linear(mlp_ratio * hidden_d, hidden_d).to(self.device),
+            nn.Linear(mlp_ratio * self.hidden_d, self.hidden_d),
             nn.Dropout(0.1)
-        )
+        ).to(self.device)
 
     def forward(self, x):
-        """
-        Forward pass through the encoder block.
-        Args:
-        - tokens (torch.Tensor): Input tensor of shape (N, S, D)
-          where N is batch size, S is sequence length, D is token dimensionality.
+        """Forward pass through the encoder block.
+
+        Parameters:
+            x (torch.Tensor): Input tensor of shape (N, seq_len, D)
+              where N is batch size, seq_len is sequence length, D is token dimensionality.
+
         Returns:
-        - torch.Tensor: Normalized tokens of shape (N, S, D)
+            torch.Tensor: Normalized tokens of shape (N, seq_len, D)
         """
         normalized_tokens = self.norm1(x)
 
-        msa_output = self.mhsa(normalized_tokens.to(self.device))
+        mhsa_output = self.mhsa(normalized_tokens.to(self.device))
 
-        res_con_out = x + msa_output
+        res_con_out = x + mhsa_output
 
         normalized_tokens_two = self.norm2(res_con_out)
 
@@ -369,15 +368,26 @@ class ViTBlock(nn.Module):
 
         return res_con_out_two
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 
 class ViT(nn.Module):
     def __init__(self, chw, n_patches=7, n_blocks=2, hidden_d=512, n_heads=2, out_d=1, device='cuda'):
+        """Vision Transformer (ViT) implementation for regression tasks.
+
+        Parameters:
+            chw (tuple): Input shape (C, H, W) where C is number of channels, H is height, W is width.
+            n_patches (int): Number of patches to divide each image's dimension into.
+            n_blocks (int): Number of transformer blocks.
+            hidden_d (int): Dimensionality of each token.
+            n_heads (int): Number of attention heads.
+            out_d (int): Output dimensionality.
+        """
         super(ViT, self).__init__()
 
         # Hyperparameters
-        self.chw = chw  # ( C , H , W )
+        self.chw = chw  # ( Channels , Height , Width )
         self.n_patches = n_patches
         self.n_blocks = n_blocks
         self.n_heads = n_heads
@@ -385,19 +395,17 @@ class ViT(nn.Module):
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
 
         assert (
-                chw[1] % n_patches == 0
+                self.chw[1] % self.n_patches == 0
         ), "Input shape not entirely divisible by number of patches"
         assert (
-                chw[2] % n_patches == 0
+                self.chw[2] % self.n_patches == 0
         ), "Input shape not entirely divisible by number of patches"
-        self.patch_size = (chw[1] // n_patches, chw[2] // n_patches)
+        self.patch_size = (self.chw[1] // self.n_patches, self.chw[2] // self.n_patches)
 
-        self.patch_dim = int(chw[0] * self.patch_size[0] * self.patch_size[1])
-        self.linear_mapper = nn.Linear(self.patch_dim, self.hidden_d).to(
-            self.device)
+        self.patch_dim = int(self.chw[0] * self.patch_size[0] * self.patch_size[1])
+        self.linear_mapper = nn.Linear(self.patch_dim, self.hidden_d).to(self.device)
 
-        self.class_token = nn.Parameter(torch.randn(1, 1, self.hidden_d,
-                                                    device=self.device))
+        self.class_token = nn.Parameter(torch.randn(1, 1, self.hidden_d, device=self.device))
 
         self.blocks = nn.ModuleList(
             [ViTBlock(self.hidden_d, self.n_heads).to(self.device) for _ in range(self.n_blocks)]
@@ -408,6 +416,14 @@ class ViT(nn.Module):
         ).to(self.device)
 
     def forward(self, image_list):
+        """Forward pass through the Vision Transformer.
+
+        Parameters:
+            image_list (torch.Tensor): Input tensor of shape (N, S, C, H, W)
+
+        Returns:
+            torch.Tensor: Output tensor of shape (N, out_d) where N is batch size, out_d is the output dimensionality.
+        """
         n, _, _, _, _ = image_list.shape
 
         patches = patchify(image_list, self.n_patches).to(self.device)  # torch.Size([N, 245, 512])
@@ -428,24 +444,27 @@ class ViT(nn.Module):
 
         return self.mlp(token)
 
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-def compute_metrics(outputs, label_list):
-    """Computes RMSE, MAE, and R² metrics."""
+def compute_metrics(outputs, label_list, epsilon=1e-8):
+    """Computes RMSE, MAE, %MAE and R² metrics."""
     errors = outputs - label_list
     mse = torch.mean(errors ** 2)
     mae = torch.mean(torch.abs(errors))
     rmse = torch.sqrt(mse)
+    mape = torch.mean(torch.abs(errors / (label_list + epsilon))) * 100
 
     total_variance = torch.mean((label_list - torch.mean(label_list)) ** 2)
     explained_variance = total_variance - mse
     r2 = explained_variance / total_variance
 
-    return rmse.item(), mae.item(), r2.item()
+    return rmse.item(), mae.item(), mape.item(), r2.item()
 
 
 def train(model, train_loader, criterion, optimizer, device):
+    """Train the model for one epoch."""
     model.train()
     running_loss = 0.0
     train_outputs, train_labels = [], []
@@ -469,12 +488,13 @@ def train(model, train_loader, criterion, optimizer, device):
     train_outputs = torch.cat(train_outputs, dim=0)
     train_labels = torch.cat(train_labels, dim=0)
 
-    rmse, mae, r2 = compute_metrics(train_outputs, train_labels)
+    rmse, mae, mape, r2 = compute_metrics(train_outputs, train_labels)
 
-    return avg_train_loss, rmse, mae, r2
+    return avg_train_loss, rmse, mae, mape, r2
 
 
 def evaluate(model, loader, criterion, device):
+    """Evaluate the model on the validation/test set."""
     model.eval()
     running_loss = 0.0
     valid_outputs, valid_labels = [], []
@@ -494,9 +514,9 @@ def evaluate(model, loader, criterion, device):
     valid_outputs = torch.cat(valid_outputs, dim=0)
     valid_labels = torch.cat(valid_labels, dim=0)
 
-    rmse, mae, r2 = compute_metrics(valid_outputs, valid_labels)
+    rmse, mae, mape, r2 = compute_metrics(valid_outputs, valid_labels)
 
-    return avg_valid_loss, rmse, mae, r2
+    return avg_valid_loss, rmse, mae, mape, r2
 
 
 def main():
@@ -510,7 +530,6 @@ def main():
     n_blocks = 8
     hidden_d = 256
     n_heads = 2
-    mlp_d = 64
 
     train_dataset = ImageDataset(train_im, train_y)
     valid_dataset = ImageDataset(valid_im, valid_y)
@@ -519,8 +538,11 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print("Using device: ", device, f"({torch.cuda.get_device_name(device)})" if torch.cuda.is_available() else "")
-    model = ViT((3, 224, 224), n_patches=7, n_blocks=2, hidden_d=512, n_heads=2, out_d=1).to(device)
-    optimizer = Adam(model.parameters(), lr=learning_rate, weight_decay=0.01)
+
+    model = ViT((3, 224, 224), n_patches=n_patches, n_blocks=n_blocks, hidden_d=hidden_d, n_heads=n_heads, out_d=1).to(
+        device)
+
+    optimizer = Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     criterion = MSELoss()
 
     train_loader = DataLoader(train_dataset, shuffle=True, batch_size=batch_size)
@@ -534,22 +556,28 @@ def main():
     train_loss_list, valid_loss_list = [], []
     train_rmse_list, valid_rmse_list = [], []
     train_mae_list, valid_mae_list = [], []
+    train_mape_list, valid_mape_list = [], []
     train_r2_list, valid_r2_list = [], []
 
     for epoch in range(n_epochs):
-        train_loss, train_rmse, train_mae, train_r2 = train(model, train_loader, criterion, optimizer, device)
+        train_loss, train_rmse, train_mae, train_mape, train_r2 = train(model, train_loader, criterion, optimizer,
+                                                                        device)
         train_loss_list.append(train_loss)
         train_rmse_list.append(train_rmse)
         train_mae_list.append(train_mae)
+        train_mape_list.append(train_mape)
         train_r2_list.append(train_r2)
-        print(f"Epoch [{epoch+1}/{n_epochs}] Train Loss: {train_loss:.4f} RMSE: {train_rmse:.4f} MAE: {train_mae:.4f} R²: {train_r2:.4f}")
+        print(
+            f"Epoch [{epoch + 1}/{n_epochs}] Train Loss: {train_loss:.4f} RMSE: {train_rmse:.4f} MAE: {train_mae:.4f} %MAE: {train_mape:.4f} R²: {train_r2:.4f}")
 
-        valid_loss, valid_rmse, valid_mae, valid_r2 = evaluate(model, val_loader, criterion, device)
+        valid_loss, valid_rmse, valid_mae, valid_mape, valid_r2 = evaluate(model, val_loader, criterion, device)
         valid_loss_list.append(valid_loss)
         valid_rmse_list.append(valid_rmse)
         valid_mae_list.append(valid_mae)
+        valid_mape_list.append(valid_mape)
         valid_r2_list.append(valid_r2)
-        print(f"Epoch [{epoch+1}/{n_epochs}] Validation Loss: {valid_loss:.4f} RMSE: {valid_rmse:.4f} MAE: {valid_mae:.4f} R²: {valid_r2:.4f}")
+        print(
+            f"Epoch [{epoch + 1}/{n_epochs}] Validation Loss: {valid_loss:.4f} RMSE: {valid_rmse:.4f} MAE: {valid_mae:.4f} %MAE: {valid_mape:.4f} R²: {valid_r2:.4f}")
 
         # Early stopping check
         if valid_loss < best_valid_loss:
@@ -558,23 +586,24 @@ def main():
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                print(f"Early stopping triggered after {epoch+1} epochs.")
+                print(f"Early stopping triggered after {epoch + 1} epochs.")
                 break
 
-    test_loss, test_rmse, test_mae, test_r2 = evaluate(model, test_loader, criterion, device)
-    print(f"Test Loss: {test_loss:.4f}, RMSE: {test_rmse:.4f}, MAE: {test_mae:.4f}, R²: {test_r2:.4f}")
+    test_loss, test_rmse, test_mae, test_mape, test_r2 = evaluate(model, test_loader, criterion, device)
+    print(
+        f"Test Loss: {test_loss:.4f}, RMSE: {test_rmse:.4f}, MAE: {test_mae:.4f}, %MAPE: {test_mape:.4f}, R²: {test_r2:.4f}")
 
     # Plot metrics
     plot_filepath = f'../plots/plot_{t.localtime().tm_year}-{t.localtime().tm_mon}-{t.localtime().tm_mday}_{t.localtime().tm_hour}-{t.localtime().tm_min}-{t.localtime().tm_sec}.png'
     plt.figure(figsize=(12, 10))
 
-    # Plot Loss
+    # Plot MAPE (Replaces MSE Plot)
     plt.subplot(2, 2, 1)
-    plt.plot(train_loss_list, label='Training Loss', color='blue', linestyle='-')
-    plt.plot(valid_loss_list, label='Validation Loss', color='orange', linestyle='--')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.title('Loss Development During Training')
+    plt.plot(train_mape_list, label='Trénovacia %MAE', color='blue', linestyle='-')
+    plt.plot(valid_mape_list, label='Validačná %MAE', color='orange', linestyle='--')
+    plt.xlabel('Epochy')
+    plt.ylabel('MAE (%)')
+    plt.title('Vývoj %MAE počas trénovania')
     plt.legend()
     plt.grid()
 
