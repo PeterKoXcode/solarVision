@@ -540,6 +540,7 @@ class CombinedModel(nn.Module):
             out_d (int): Output dimensionality
         """
         super(CombinedModel, self).__init__()
+
         self.vit_model = vit_model
         self.mlp_model = mlp_model
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
